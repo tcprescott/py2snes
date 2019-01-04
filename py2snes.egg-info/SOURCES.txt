@@ -1,0 +1,8 @@
+README.md
+setup.py
+py2snes/__init__.py
+py2snes.egg-info/PKG-INFO
+py2snes.egg-info/SOURCES.txt
+py2snes.egg-info/dependency_links.txt
+py2snes.egg-info/requires.txt
+py2snes.egg-info/top_level.txt
