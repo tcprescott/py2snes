@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: py2snes
-Version: 1.0.0
+Version: 0.3.0
 Summary: A python module for interacting with the sd2snes using the usb2snes firmware by Redguyyyy.
 Home-page: https://github.com/tcprescott/py2snes
 Author: Thomas Prescott
