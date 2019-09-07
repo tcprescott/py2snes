@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 
 import asyncio
+import aiofiles
+import os
 
 import logging
 
@@ -137,8 +139,6 @@ class snes():
             self.request_lock.release()
 
     async def Name(self, name):
-        await self.request_lock.acquire()
-
         if self.state != SNES_ATTACHED or self.socket is None or not self.socket.open or self.socket.closed:
             return None
         try:
@@ -156,8 +156,6 @@ class snes():
             self.state = SNES_DISCONNECTED
 
     async def Boot(self, rom):
-        await self.request_lock.acquire()
-
         if self.state != SNES_ATTACHED or self.socket is None or not self.socket.open or self.socket.closed:
             return None
         try:
@@ -296,6 +294,72 @@ class snes():
         finally:
             self.request_lock.release()
 
+    # async def GetFile(self, filepath):
+    #     try:
+    #         await self.request_lock.acquire()
+
+    #         if self.state != SNES_ATTACHED or self.socket is None or not self.socket.open or self.socket.closed:
+    #             return None
+
+    #         request = {
+    #             "Opcode" : "GetFile",
+    #             "Space" : "SNES",
+    #             "Operands" : [filepath]
+    #         }
+    #         try:
+    #             await self.socket.send(json.dumps(request))
+    #         except websockets.ConnectionClosed:
+    #             return None
+
+    #         data = bytes()
+    #         while len(data) < size:
+    #             try:
+    #                 data += await asyncio.wait_for(self.recv_queue.get(), 5)
+    #             except asyncio.TimeoutError:
+    #                 break
+
+    #         if len(data) != size:
+    #             print('Error reading %s, requested %d bytes, received %d' % (hex(address), size, len(data)))
+    #             if len(data):
+    #                 print(str(data))
+    #             if self.socket is not None and not self.socket.closed:
+    #                 await self.socket.close()
+    #             return None
+
+    #         return data
+    #     finally:
+    #         self.request_lock.release()
+
+    async def PutFile(self, srcfile, dstfile):
+        try:
+            await self.request_lock.acquire()
+
+            if self.state != SNES_ATTACHED or self.socket is None or not self.socket.open or self.socket.closed:
+                return None
+
+            size = os.path.getsize(srcfile)
+            async with aiofiles.open(srcfile, 'rb') as infile:
+                request = {
+                    "Opcode" : "PutFile",
+                    "Space" : "SNES",
+                    "Operands" : [dstfile, hex(size)[2:]]
+                }
+                try:
+                    if self.socket is not None:
+                        await self.socket.send(json.dumps(request))
+                    if self.socket is not None:
+                        while True:
+                            chunk = await infile.read(4096)
+                            if not chunk: break
+                            await self.socket.send(chunk)
+                except websockets.ConnectionClosed:
+                    return False
+
+                return True
+        finally:
+            self.request_lock.release()
+            await self.List()
+
     async def recv_loop(self):
         try:
             async for msg in self.socket:
@@ -311,142 +375,122 @@ class snes():
             self.state = SNES_DISCONNECTED
             self.recv_queue = asyncio.Queue()
 
-    # def GetFile(self,filepath):
-    #     """Not yet fully implemented"""
-    #     if self.attached:
-    #         cmd = {
-    #             'Opcode': 'GetFile',
-    #             'Space': 'SNES',
-    #             'Flags': None,
-    #             'Operands': [filepath]
-    #         }
-    #         self.conn.send(json.dumps(cmd))
-    #         result = self.conn.recv()
-    #         binAnswer = self.conn.recv_data()
-    #         fh = open('rom/testget.sfc','wb')
-    #         fh.write(binAnswer[1])
-    #         fh.close()
-    #         return json.loads(result)['Results']
-    #     else:
-    #         raise usb2snesException("GetFile: not attached to usb2snes.  Try executing Attach first.")
+    async def List(self,dirpath):
+        if self.state != SNES_ATTACHED or self.socket is None or not self.socket.open or self.socket.closed:
+            return None
+        elif not dirpath.startswith('/') and not dirpath in ['','/']:
+            raise usb2snesException("Path \"{path}\" should start with \"/\"".format(
+                path=dirpath
+            ))
+        elif dirpath.endswith('/') and not dirpath in ['','/']:
+            raise usb2snesException("Path \"{path}\" should not end with \"/\"".format(
+                path=dirpath
+            ))
 
-    # def List(self,dirpath):
-    #     if not self.attached:
-    #         raise usb2snesException("Not attached to usb2snes.  Try executing Attach first.")
-    #     elif not dirpath.startswith('/') and not dirpath in ['','/']:
-    #         raise usb2snesException("Path \"{path}\" should start with \"/\"".format(
-    #             path=dirpath
-    #         ))
-    #     elif dirpath.endswith('/') and not dirpath in ['','/']:
-    #         raise usb2snesException("Path \"{path}\" should not end with \"/\"".format(
-    #             path=dirpath
-    #         ))
-
-    #     if not dirpath in ['','/']:
-    #         path = dirpath.lower().split('/')
-    #         for idx, node in enumerate(path):
-    #             if node == '':
-    #                 continue
-    #             else:
-    #                 parent = '/'.join(path[:idx])
-    #                 parentlist = self._list(parent)
+        if not dirpath in ['','/']:
+            path = dirpath.lower().split('/')
+            for idx, node in enumerate(path):
+                if node == '':
+                    continue
+                else:
+                    parent = '/'.join(path[:idx])
+                    parentlist = await self._list(parent)
                     
-    #                 if any(d['filename'].lower() == node for d in parentlist):
-    #                     continue
-    #                 else:
-    #                     raise FileNotFoundError("directory {path} does not exist on usb2snes.".format(
-    #                         path=dirpath
-    #                     ))
-    #         return self._list(dirpath)
-    #     else:
-    #         return self._list(dirpath)
+                    if any(d['filename'].lower() == node for d in parentlist):
+                        continue
+                    else:
+                        raise FileNotFoundError("directory {path} does not exist on usb2snes.".format(
+                            path=dirpath
+                        ))
+            return await self._list(dirpath)
+        else:
+            return await self._list(dirpath)
 
-    # def MakeDir(self,dirpath):
-    #     if not self.attached:
-    #         raise usb2snesException("Not attached to usb2snes.  Try executing Attach first.")
-    #     if dirpath in ['','/']:
-    #         raise usb2snesException('MakeDir: dirpath cannot be blank or \"/\"')
+    async def _list(self, dirpath):
+        try:
+            await self.request_lock.acquire()
 
-    #     path = dirpath.split('/')
-    #     parent = '/'.join(path[:-1])
-    #     parentdir = self.List(parent)
-    #     try:
-    #         self.List(dirpath)
-    #     except FileNotFoundError as e:
-    #         self._makedir(dirpath)
+            if self.state != SNES_ATTACHED or self.socket is None or not self.socket.open or self.socket.closed:
+                return None
+            try:
+                request = {
+                    'Opcode': 'List',
+                    'Space': 'SNES',
+                    'Flags': None,
+                    'Operands': [dirpath]
+                }
+                await self.socket.send(json.dumps(request))
+                results = json.loads(await asyncio.wait_for(self.recv_queue.get(), 5))['Results']
 
-    # def Remove(self,filepath):
-    #     if self.attached:
-    #         if not filepath in ['','/']:
-    #             # self._makedir(dirpath)
-    #             path = filepath.split('/')
-    #             parent = '/'.join(path[:-1])
-    #             parentdir = self.List(parent)
-    #             if parentdir:
-    #                 # print(self.List(dirpath))
-    #                 if not self.List(filepath):
-    #                     self._makedir(filepath)
-    #                 return True
-    #             else:
-    #                 raise usb2snesException('MakeDir: cannot create {filepath} because parent directory {parent} does not exist.'.format(
-    #                     dirpath=filepath,
-    #                     parent=parent
-    #                 ))
-    #         else:
-    #             raise usb2snesException('Remove: filepath cannot be blank or /')
-    #     else:
-    #         raise usb2snesException("Remove: not attached to usb2snes.  Try executing Attach first.")
+                resultlist = []
+                for filetype, filename in zip(results[::2], results[1::2]):
+                    resultdict = {
+                        "type": filetype,
+                        "filename": filename
+                    }
+                    if not filename in ['.','..']:
+                        resultlist.append(resultdict)
+                return resultlist
+            except Exception as e:
+                if self.socket is not None:
+                    if not self.socket.closed:
+                        await self.socket.close()
+                    self.socket = None
+                self.snes_state = SNES_DISCONNECTED
+        finally:
+            self.request_lock.release()
 
+    async def MakeDir(self,dirpath):
+        if self.state != SNES_ATTACHED or self.socket is None or not self.socket.open or self.socket.closed:
+            return None
+        if dirpath in ['','/']:
+            raise usb2snesException('MakeDir: dirpath cannot be blank or \"/\"')
 
+        path = dirpath.split('/')
+        parent = '/'.join(path[:-1])
+        parentdir = await self.List(parent)
+        try:
+            await self.List(dirpath)
+        except FileNotFoundError as e:
+            await self._mkdir(dirpath)
 
-    # def _list(self, dirpath):
-    #     cmd = {
-    #         'Opcode': 'List',
-    #         'Space': 'SNES',
-    #         'Flags': None,
-    #         'Operands': [dirpath]
-    #     }
-    #     self.conn.send(json.dumps(cmd))
-    #     result = self.conn.recv()
-    #     it = iter(json.loads(result)['Results'])
-    #     resultlist = []
-    #     for item in it:
-    #         filetype = item
-    #         filename = next(it)
-    #         resultdict = {
-    #             "type": filetype,
-    #             "filename": filename
-    #         }
-    #         if not filename in ['.','..']:
-    #             resultlist.append(resultdict)
-    #     return resultlist
-        
+    async def _mkdir(self, dirpath):
+        if self.state != SNES_ATTACHED or self.socket is None or not self.socket.open or self.socket.closed:
+            return None
+        try:
+            request = {
+                'Opcode': 'MkDir',
+                'Space': 'SNES',
+                'Flags': None,
+                'Operands': [dirpath]
+            }
+            await self.socket.send(json.dumps(request))
+        except Exception as e:
+            if self.socket is not None:
+                if not self.socket.closed:
+                    await self.socket.close()
+                self.socket = None
+            self.snes_state = SNES_DISCONNECTED
 
-    # def _makedir(self, dirpath):
-    #     cmd = {
-    #         'Opcode': 'MakeDir',
-    #         'Space': 'SNES',
-    #         'Flags': None,
-    #         'Operands': [dirpath]
-    #     }
-    #     self.conn.send(json.dumps(cmd))
+    async def Remove(self, dirpath):
+        """this is pretty broken"""
 
-    # def _remove(self, filepath):
-    #     cmd = {
-    #         'Opcode': 'Remove',
-    #         'Space': 'SNES',
-    #         'Flags': None,
-    #         'Operands': [filepath]
-    #     }
-    #     self.conn.send(json.dumps(cmd))
-
-    # def _fileexists(self, filepath):
-    #     pass
-
-def _chunk(iterator, count):
-    itr = iter(iterator)
-    while True:
-        yield tuple([next(itr) for i in range(count)])
+        if self.state != SNES_ATTACHED or self.socket is None or not self.socket.open or self.socket.closed:
+            return None
+        try:
+            request = {
+                'Opcode': 'Remove',
+                'Space': 'SNES',
+                'Flags': None,
+                'Operands': [dirpath]
+            }
+            await self.socket.send(json.dumps(request))
+        except Exception as e:
+            if self.socket is not None:
+                if not self.socket.closed:
+                    await self.socket.close()
+                self.socket = None
+            self.snes_state = SNES_DISCONNECTED
 
 def _listitem(list, index):
     try:
