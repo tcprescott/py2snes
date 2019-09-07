@@ -3,3 +3,4 @@ build/
 dist/
 src/test.py
 src/romloader.yaml
+.vscode/
