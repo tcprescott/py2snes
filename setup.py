@@ -8,7 +8,7 @@ README = (HERE / "README.md").read_text()
 
 setup(
     name="py2snes",
-    version="0.3.0",
+    version="1.0.0",
     author="Thomas Prescott",
     author_email="tcprescott@gmail.com",
     description="A python module for interacting with the sd2snes using the usb2snes firmware by Redguyyyy.",
@@ -19,8 +19,9 @@ setup(
     classifiers=[
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.6",
+        "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
     ],
-    install_requires=['websocket-client'],
+    install_requires=['websockets','aiofiles'],
 )
