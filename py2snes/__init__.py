@@ -358,7 +358,7 @@ class snes():
                 return True
         finally:
             self.request_lock.release()
-            await self.List()
+            await self.List('/') #ugly hack to figure out when the file is actually done copying
 
     async def recv_loop(self):
         try:
