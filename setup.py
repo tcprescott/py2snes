@@ -8,7 +8,7 @@ README = (HERE / "README.md").read_text()
 
 setup(
     name="py2snes",
-    version="1.0.1",
+    version="1.0.2",
     author="Thomas Prescott",
     author_email="tcprescott@gmail.com",
     description="A python module for interacting with the sd2snes using the usb2snes firmware by Redguyyyy.",
