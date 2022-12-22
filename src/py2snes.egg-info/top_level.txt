@@ -1,0 +1,3 @@
+msu_pack_switch
+putfile
+py2snes

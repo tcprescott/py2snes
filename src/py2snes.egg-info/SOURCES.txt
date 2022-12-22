@@ -1,0 +1,11 @@
+LICENSE
+README.md
+pyproject.toml
+src/msu_pack_switch.py
+src/putfile.py
+src/py2snes/__init__.py
+src/py2snes.egg-info/PKG-INFO
+src/py2snes.egg-info/SOURCES.txt
+src/py2snes.egg-info/dependency_links.txt
+src/py2snes.egg-info/requires.txt
+src/py2snes.egg-info/top_level.txt
