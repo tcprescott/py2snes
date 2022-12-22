@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "py2snes"
+version = "1.0.4"
+authors = [
+  { name="Thomas Prescott", email="tcprescott@gmail.com" },
+]
+description = "A simple python module for interacting with the usb2snes websocket server."
+readme = "README.md"
+requires-python = ">=3.7"
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "websockets",
+    "aiofiles"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/tcprescott/py2snes"
+"Bug Tracker" = "https://github.com/tcprescott/py2snes/issues"
